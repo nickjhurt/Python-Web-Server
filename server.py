@@ -1,3 +1,7 @@
+'''
+Developers:  Nick Hurt, Keith Schmitt, Runquan Ye
+'''
+
 import http, select, socket, time
 import os,sys,traceback, signal
 
@@ -11,6 +15,9 @@ class Server:
         self.http_socket =  socket.socket(socket.AF_INET, socket.SOCK_STREAM, \
         socket.IPPROTO_TCP)
         self.http_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        #creata a log record list
+        self.log_list = []
 
         try:
             self.http_socket.bind((self.ip, self.port))
@@ -56,6 +63,16 @@ class Server:
     def sighandler(self, signum, frame):
         print('Got a sigint, shutting down the server')
         self.http_socket.close()
+        '''
+            Jerry: Now the program close.
+            I can update the log file use open() with no conflict with the web
+            and replace '/r/n' to '/n'
+            
+        '''
+        file = open('log.txt', "w")
+        for log in self.log_list:
+            file.write(log)
+        file.close()
         sys.exit(1)
 
     def send_directory_contents(self,clientsocket, requested_file):
@@ -67,12 +84,16 @@ class Server:
         #last modified header
         response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
         response_hdr += "\r\n\r\n"
-
+        #add into the record log file
+        self.logRecord(response_hdr)
+        
         #construct html for directory
         send_file = "<html><h2>Requested a directory. Here are the contents you can see: </h2>"
         send_file += "<li> ".join([str(i)  for i in os.listdir(self.docroot + requested_file)])
         send_file +="+ </li></html>"
         send_file += "\r\n\r\n"
+        #add into the record log file
+        self.logRecord(send_file)
 
         #send the constructed file
         clientsocket.send(response_hdr.encode())
@@ -89,7 +110,8 @@ class Server:
             #last modified header
             response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
             response_hdr += "\r\n\r\n"
-
+            #add into the record log file
+            self.logRecord(response_hdr)
             send_file = open(self.docroot + "/index.html", "r").read().encode() + b"\r\n\r\n"
 
             #send homepage!
@@ -114,7 +136,8 @@ class Server:
                 response_hdr += "Last-Modified: " + str(os.stat(self.docroot+requested_file).st_mtime)
                 response_hdr += "\r\n\r\n"
 
-
+                #add into the record log file
+                self.logRecord(response_hdr)
                 clientsocket.send(response_hdr.encode())
                 clientsocket.send(send_file)
             #either the file is not there
@@ -126,14 +149,29 @@ class Server:
                 #last modified header
 
                 #send over 404 header
+                #add into the record log file
+                self.logRecord(response_hdr)
                 clientsocket.send(response_hdr.encode())
 
     def send_unimplemented(clientsocket):
         response_hdr = "HTTP/1.1 501 Not Implemented\r\n"
         response_hdr += "Content-Type: text/html; charset=utf-8\r\n"
         response_hdr +="Date: " + str(time.strftime("%c"))
+        #add into the record log file
+        self.logRecord(response_hdr)
 
-
+    #the record method
+    def logRecord(self, info):
+        #just write the input info string inside of the record file
+        #file.write(info)
+        '''
+            Jerry: I try to create a file and store every log inside. but i cannot use the
+            fopen() because it been use to open the web.
+            Therefore, I think about store everything inside a list.
+            after end of the program them I store inside of the file then it will not interfare the website
+        '''
+        self.log_list.append(info)
+        #print(self.log_list)
 
 
 if __name__ == '__main__':
@@ -150,3 +188,5 @@ if __name__ == '__main__':
     S = Server(args.p, args.docroot, args.logfile)
     #run main method
     S.serve()
+
+
